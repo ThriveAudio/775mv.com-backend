@@ -219,9 +219,12 @@ async def authorize(request: Request):
                 if res['items'][item][i] == "" and i != "address2":
                     return {"result": f"missing {item} {i}"}
 
+    if not account['cart']:
+        return {"result": "missing cart"}
+
     return {"result" : f"success"}
 
-    '''# Create a merchantAuthenticationType object with authentication details
+    # Create a merchantAuthenticationType object with authentication details
     # retrieved from the constants file
     merchantAuth = apicontractsv1.merchantAuthenticationType()
     merchantAuth.name = "34UTh2qF6d"
@@ -243,20 +246,20 @@ async def authorize(request: Request):
 
     # Set the customer's Bill To address
     customerAddress = apicontractsv1.customerAddressType()
-    customerAddress.firstName = webdata['contact']['name'].split(' ')[0]
-    customerAddress.lastName = ' '.join(webdata['contact']['name'].split(' ')[1:])
-    if webdata['billing']['use shipping address']:
-        customerAddress.address = webdata['shipping']['address'] + f'\n{webdata["shipping"]["address2"]}' if webdata["shipping"]["address2"] != '' else ''
-        customerAddress.city = webdata['shipping']['city']
-        customerAddress.state = webdata['shipping']['state']
-        customerAddress.zip = webdata['shipping']['zip']
-        customerAddress.country = webdata['shipping']['country']
+    customerAddress.firstName = res['items']['shipping']['first_name']
+    customerAddress.lastName = res['items']['shipping']['last_name']
+    if res['items']['billing']['same_as_shipping']:
+        customerAddress.address = res['items']['shipping']['address1'] + f'\n{res["items"]["shipping"]["address2"]}' if res['items']["shipping"]["address2"] != '' else ''
+        customerAddress.city = res['items']['shipping']['city']
+        customerAddress.state = res['items']['shipping']['state']
+        customerAddress.zip = res['items']['shipping']['zip']
+        customerAddress.country = res['items']['shipping']['country']
     else:
-        customerAddress.address = webdata['billing']['address'] + f'\n{webdata["billing"]["address2"]}' if webdata["billing"]["address2"] != '' else ''
-        customerAddress.city = webdata['billing']['city']
-        customerAddress.state = webdata['billing']['state']
-        customerAddress.zip = webdata['billing']['zip']
-        customerAddress.country = webdata['billing']['country']
+        customerAddress.address = res['items']['billing']['address'] + f'\n{res["items"]["billing"]["address2"]}' if res['items']["billing"]["address2"] != '' else ''
+        customerAddress.city = res['items']['billing']['city']
+        customerAddress.state = res['items']['billing']['state']
+        customerAddress.zip = res['items']['billing']['zip']
+        customerAddress.country = res['items']['billing']['country']
 
     # Set the customer's identifying information
     # customerData = apicontractsv1.customerDataType()
@@ -353,4 +356,4 @@ async def authorize(request: Request):
     else:
         print('Null Response.')
 
-    return 'fail'''
+    return 'fail'
