@@ -368,6 +368,9 @@ async def authorize(request: Request):
                     "items": items
                 })
 
+                await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'cart': []}})
+                await db.db['orders'].update_one({'type': 'last_id'}, {'$set': {'id': new_id}})
+
                 return {"result" : f"success {order_id}"}
             else:
                 print('Failed Transaction.')
