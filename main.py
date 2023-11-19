@@ -1,3 +1,4 @@
+import random
 import time
 import uuid
 #from pymongo import MongoClient
@@ -208,6 +209,9 @@ async def authorize(request: Request):
 
     print(res)
 
+    last_id = (await db.get_document('orders', {"type": "last_id"}))['id']
+    new_id = last_id + random.randint(1, 13)
+
     # Check for shipping information
     for item in res['items']:
         if item != ['expanded']:
@@ -219,10 +223,9 @@ async def authorize(request: Request):
                 if res['items'][item][i] == "" and i != "address2":
                     return {"result": f"missing {item} {i}"}
 
+    # Check for cart
     if not account['cart']:
         return {"result": "missing cart"}
-
-    return {"result" : f"success"}
 
     # Create a merchantAuthenticationType object with authentication details
     # retrieved from the constants file
@@ -242,7 +245,7 @@ async def authorize(request: Request):
 
     # Create order information
     order = apicontractsv1.orderType()
-    order.invoiceNumber = str(order_id)
+    order.invoiceNumber = str(new_id)
 
     # Set the customer's Bill To address
     customerAddress = apicontractsv1.customerAddressType()
@@ -276,13 +279,17 @@ async def authorize(request: Request):
 
     # setup individual line items & build the array of line items
     line_items = apicontractsv1.ArrayOfLineItem()
-    for item in webdata['cart']:
+    total_price = 0
+    for item in account['cart']:
+        original_item = await db.get_document('product-information', {'sku': item['sku']})
+        total_price += item['amount'] * original_item['price']
+
         line_item = apicontractsv1.lineItemType()
         line_item.itemId = item['sku']
-        line_item.name = item['sku'].split('-')[0]
-        line_item.description = ' '.join(item['sku'].split('-')[1:])
-        line_item.quantity = item['quantity']
-        line_item.unitPrice = item['unit_price']
+        line_item.name = item['sku']
+        line_item.description = original_item['description']
+        line_item.quantity = item['amount']
+        line_item.unitPrice = original_item['price']
         line_items.lineItem.append(line_item)
 
     line_item = apicontractsv1.lineItemType()
@@ -290,24 +297,24 @@ async def authorize(request: Request):
     line_item.name = 'Shipping price'
     line_item.description = 'The shipping cost'
     line_item.quantity = '1'
-    line_item.unitPrice = shipping_price
+    line_item.unitPrice = '8.5'
     line_items.lineItem.append(line_item)
 
     # Create a transactionRequestType object and add the previous objects to it.
     transactionrequest = apicontractsv1.transactionRequestType()
     transactionrequest.transactionType = "authOnlyTransaction"
-    transactionrequest.amount = total_price
-    transactionrequest.payment = payment
-    transactionrequest.order = order
-    transactionrequest.billTo = customerAddress
-    transactionrequest.transactionSettings = settings
-    transactionrequest.lineItems = line_items
+    transactionrequest.amount = total_price # good
+    transactionrequest.payment = payment # good
+    transactionrequest.order = order # good* *need order id (scroll up)
+    transactionrequest.billTo = customerAddress # good
+    transactionrequest.transactionSettings = settings # good
+    transactionrequest.lineItems = line_items # good
 
     # Assemble the complete transaction request
     createtransactionrequest = apicontractsv1.createTransactionRequest()
-    createtransactionrequest.merchantAuthentication = merchantAuth
+    createtransactionrequest.merchantAuthentication = merchantAuth # good
     createtransactionrequest.refId = "MerchantID-0001"
-    createtransactionrequest.transactionRequest = transactionrequest
+    createtransactionrequest.transactionRequest = transactionrequest # good
     # Create the controller
     createtransactioncontroller = createTransactionController(
         createtransactionrequest)
@@ -330,7 +337,38 @@ async def authorize(request: Request):
                       response.transactionResponse.messages.message[0].code)
                 print('Description: %s' % response.transactionResponse.
                       messages.message[0].description)
-                return response.transactionResponse.transId
+
+                items = []
+                for i in account['cart']:
+                    items.append({
+                        "product": (await db.get_document("product-information", {"sku": i['sku']}))['_id'],
+                        "amount": i['amount']
+                    })
+                order_id = await db.post_document("orders", {
+                    "id": new_id,
+                    "payment_status": "authorized",
+                    "authorize_id": str(response.transactionResponse.transId),
+                    "order_status": "processing",
+                    "user": {
+                        "account": account['_id'],
+                        "contact": {
+                            "first_name": res['items']['shipping']['first_name'],
+                            "last_name": res['items']['shipping']['last_name'],
+                            "email": res['items']['shipping']['email'],
+                        },
+                        "shipping": {
+                            "address1": res['items']['shipping']['address1'],
+                            "address2": res['items']['shipping']['address2'],
+                            "city": res['items']['shipping']['city'],
+                            "state": res['items']['shipping']['state'],
+                            "zip": res['items']['shipping']['zip'],
+                            "country": res['items']['shipping']['country']
+                        }
+                    },
+                    "items": items
+                })
+
+                return {"result" : f"success {order_id}"}
             else:
                 print('Failed Transaction.')
                 if hasattr(response.transactionResponse, 'errors') is True:
@@ -339,6 +377,7 @@ async def authorize(request: Request):
                     print(
                         'Error message: %s' %
                         response.transactionResponse.errors.error[0].errorText)
+                    return {"result": "error "+response.transactionResponse.errors.error[0].errorText}
         # Or, print errors if the API request wasn't successful
         else:
             print('Failed Transaction.')
@@ -348,12 +387,15 @@ async def authorize(request: Request):
                     response.transactionResponse.errors.error[0].errorCode))
                 print('Error message: %s' %
                       response.transactionResponse.errors.error[0].errorText)
+                return {"result": "error "+response.transactionResponse.errors.error[0].errorText}
             else:
                 print('Error Code: %s' %
                       response.messages.message[0]['code'].text)
                 print('Error message: %s' %
                       response.messages.message[0]['text'].text)
+                return {"result": "error " + response.messages.message[0]['text'].text}
     else:
         print('Null Response.')
+        return {"result": "error null response"}
 
-    return 'fail'
+    return {"result": "error unknown"}
