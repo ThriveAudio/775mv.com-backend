@@ -8,6 +8,7 @@ from pprint import pprint
 from json import loads
 from authorizenet import apicontractsv1
 from authorizenet.apicontrollers import createTransactionController
+from bson import ObjectId
 import re
 
 app = FastAPI()
@@ -341,11 +342,16 @@ async def authorize(request: Request):
                 items = []
                 for i in account['cart']:
                     items.append({
-                        "product": (await db.get_document("product-information", {"sku": i['sku']}))['_id'],
+                        "id": (await db.get_document("product-information", {"sku": i['sku']}))['_id'],
                         "amount": i['amount']
                     })
                 order_id = await db.post_document("orders", {
                     "id": new_id,
+                    "time": {
+                      "ordered": time.time(),
+                      "shipped": 0,
+                      "delivered": 0
+                    },
                     "payment_status": "authorized",
                     "authorize_id": str(response.transactionResponse.transId),
                     "order_status": "processing",
@@ -402,3 +408,13 @@ async def authorize(request: Request):
         return {"result": "error null response"}
 
     return {"result": "error unknown"}
+
+@app.post("/order/{id}")
+async def get_order(request: Request, id: str):
+    order = await db.get_document('orders', {'_id': ObjectId(id)})
+    for i, item in enumerate(order['items']):
+        product = await db.get_document('product-information', {'_id': ObjectId(item['id'])})
+        order['items'][i]['sku'] = product['sku']
+        order['items'][i]['price'] = product['price']
+    print(order)
+    return order
