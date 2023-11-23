@@ -9,7 +9,12 @@ from json import loads
 from authorizenet import apicontractsv1
 from authorizenet.apicontrollers import createTransactionController
 from bson import ObjectId
+import json
+import yagmail
 import re
+
+with open("keys.json") as f:
+    keys = json.load(f)
 
 app = FastAPI()
 
@@ -283,7 +288,7 @@ async def authorize(request: Request):
     total_price = 0
     for item in account['cart']:
         original_item = await db.get_document('product-information', {'sku': item['sku']})
-        total_price += item['amount'] * original_item['price']
+        total_price += int(item['amount']) * original_item['price']
 
         line_item = apicontractsv1.lineItemType()
         line_item.itemId = item['sku']
@@ -353,6 +358,7 @@ async def authorize(request: Request):
                       "delivered": 0
                     },
                     "payment_status": "authorized",
+                    "payment_method": "card",
                     "authorize_id": str(response.transactionResponse.transId),
                     "order_status": "processing",
                     "user": {
@@ -377,7 +383,10 @@ async def authorize(request: Request):
                 await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'cart': []}})
                 await db.db['orders'].update_one({'type': 'last_id'}, {'$set': {'id': new_id}})
 
-                return {"result" : f"success {order_id}"}
+                email = yagmail.SMTP('thriveaudiollc@gmail.com', keys['gmail'])
+                email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation", f"{res}")
+
+                return {"result" : f"success {order_id.inserted_id}"}
             else:
                 print('Failed Transaction.')
                 if hasattr(response.transactionResponse, 'errors') is True:
