@@ -13,9 +13,6 @@ import json
 import yagmail
 import re
 
-with open("keys.json") as f:
-    keys = json.load(f)
-
 app = FastAPI()
 
 class SiteDB:
@@ -95,10 +92,13 @@ async def new_session_id():
     })
 
     uid = str(uuid.uuid4())
+    config = await db.get_document("config", {'type': 'config'})
 
     await db.post_document('sessions', {
         "id": uid,
-        "account": doc.inserted_id
+        "account": doc.inserted_id,
+        "state": "unknown",
+        "expiration": time.time()+config['short_session']
     })
 
     return {"sessionId": uid}
@@ -382,8 +382,9 @@ async def authorize(request: Request):
 
                 await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'cart': []}})
                 await db.db['orders'].update_one({'type': 'last_id'}, {'$set': {'id': new_id}})
+                config = await db.get_document("config", {'type': 'config'})
 
-                email = yagmail.SMTP('thriveaudiollc@gmail.com', keys['gmail'])
+                email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
                 email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation", f"{res}")
 
                 return {"result" : f"success {order_id.inserted_id}"}
