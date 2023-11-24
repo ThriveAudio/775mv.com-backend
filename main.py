@@ -131,9 +131,7 @@ async def add_to_cart(request: Request):
 @app.post("/cart", status_code=200)
 async def get_cart(request: Request):
     res = await request.body()
-    print(res)
     res = loads(res.decode())
-    print(res)
     if "sessionId" not in res.keys():
         return []
     session = await db.get_document('sessions', {'id': res['sessionId']})
@@ -152,9 +150,7 @@ async def get_cart(request: Request):
 async def update_cart(request: Request):
     result = "ok"
     res = await request.body()
-    print(res)
     res = loads(res.decode())
-    print(res)
     session = await db.get_document('sessions', {'id': res['sessionId']})
     account_id = session['account']
     account = await db.get_document('accounts', {'_id': account_id})
@@ -206,9 +202,7 @@ async def authorize(request: Request):
     """
 
     res = await request.body()
-    # print(res)
     res = loads(res.decode())
-    # print(res)
     session = await db.get_document('sessions', {'id': res['sessionId']})
     account_id = session['account']
     account = await db.get_document('accounts', {'_id': account_id})
@@ -381,6 +375,7 @@ async def authorize(request: Request):
                 })
 
                 await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'cart': []}})
+                await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['shipping']['email']}})
                 await db.db['orders'].update_one({'type': 'last_id'}, {'$set': {'id': new_id}})
                 config = await db.get_document("config", {'type': 'config'})
 
@@ -428,3 +423,44 @@ async def get_order(request: Request, id: str):
         order['items'][i]['price'] = product['price']
     print(order)
     return order
+
+@app.post("/check-loggedin")
+async def check_loggedin(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+    return {"result": session['state'] == "loggedin"}
+
+def hashh(password):
+    return password
+
+@app.post("/register")
+async def register(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+    account_id = session['account']
+    account = await db.get_document('accounts', {'_id': account_id})
+    hashed = hashh(res['items']['password'])
+
+    print(res)
+
+    if session['state'] == "registered":
+        if account['password'] == hashed:
+            # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
+            return {"result": "redirect"}
+        else:
+            return {"result": "error"}
+    else:
+        await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
+        await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
+        config = await db.get_document("config", {'type': 'config'})
+        email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
+        email.send(res['items']['email'], f"775mv Email Confirmation",
+                   f'''Hi there!
+                   
+                   Please confirm your email by clicking this link: <a href="http://127.0.0.1:3000/account/confirm-email/{str(account_id)}">Confirm Email</a>
+                   
+                   Thank you!
+                   Thrive Audio LLC Team''')
+        return {"result": "redirect"}
