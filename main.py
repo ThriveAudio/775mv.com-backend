@@ -31,6 +31,8 @@ class SiteDB:
     async def get_document(self, collection: str, document: dict):
         documents = self.db[collection]
         doc = await documents.find_one(document)
+        if not doc:
+            return None
         doc['_id'] = str(doc['_id'])
         return doc
 
@@ -86,7 +88,10 @@ async def product(sku: str):
 async def new_session_id():
     doc = await db.post_document('accounts', {
         "email": "",
+        "email confirmed": False,
         "password": "",
+        "timer var": 0,
+        "timer": 0,
         "cart": [],
         "orders": []
     })
@@ -137,6 +142,7 @@ async def get_cart(request: Request):
     session = await db.get_document('sessions', {'id': res['sessionId']})
     account_id = session['account']
     account = await db.get_document('accounts', {'_id': account_id})
+    print(account)
 
     for item in account['cart']:
         db_item = await db.get_document('product-information', {'sku': item['sku']})
@@ -445,7 +451,7 @@ async def register(request: Request):
 
     print(res)
 
-    if session['state'] == "registered":
+    if session['state'] == "registered" or session['state'] == "loggedin":
         if account['password'] == hashed:
             # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
             return {"result": "redirect"}
@@ -463,4 +469,47 @@ async def register(request: Request):
                    
                    Thank you!
                    Thrive Audio LLC Team''')
+        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
         return {"result": "redirect"}
+
+@app.post("/login")
+async def login(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    print(res)
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+    account_id = session['account']
+    #account = await db.get_document('accounts', {'_id': account_id})
+    account = await db.get_document('accounts', {'email': res['items']['email']})
+    # print(test)
+
+    # Check if account exists
+    if not account:
+        return {"result": "error -1"}
+    else:
+        hashed = hashh(res['items']['password'])
+        if account['password'] == hashed:
+            # passwords match
+            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer var': 0}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': 'loggedin'}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'account': ObjectId(account['_id'])}})
+            return {"result": "redirect"}
+        else:
+            # passwords don't match
+            if account['timer var'] == 0:
+                # timer var is zero
+                await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer var': account['timer var']+5}})
+                await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer': time.time() + account['timer var']+5}})
+                return {"result": f"error {time.time() + account['timer var']+5+1}"}
+            else:
+                # timer var is more than zero
+                if account['timer'] < time.time():
+                    # timer expired
+                    await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer var': account['timer var'] + 5}})
+                    await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer': time.time() + account['timer var'] + 5}})
+                    return {"result": f"error {time.time() + account['timer var'] + 5+1}"}
+                else:
+                    # timer still ticking
+                    await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer var': account['timer var'] * 2}})
+                    await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer': account['timer'] + account['timer var'] * 2}})
+                    return {"result": f"error {account['timer'] + account['timer var'] * 2+1}"}
