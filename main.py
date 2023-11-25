@@ -23,7 +23,7 @@ class SiteDB:
     async def get_collection_as_list(self, collection: str):
         documents = []
         db_collection = self.db[collection]
-        for i in await db_collection.find():
+        async for i in db_collection.find():
             i['_id'] = str(i['_id'])
             documents.append(i)
         return documents
@@ -454,6 +454,7 @@ async def register(request: Request):
     if session['state'] == "registered" or session['state'] == "loggedin":
         if account['password'] == hashed:
             # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
             return {"result": "redirect"}
         else:
             return {"result": "error"}
@@ -513,3 +514,10 @@ async def login(request: Request):
                     await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer var': account['timer var'] * 2}})
                     await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer': account['timer'] + account['timer var'] * 2}})
                     return {"result": f"error {account['timer'] + account['timer var'] * 2+1}"}
+
+@app.post("/logout")
+async def logout(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "registered"}})
+    return {'result': "redirect"}
