@@ -440,7 +440,7 @@ async def check_loggedin(request: Request):
     return {"result": session['state'] == "loggedin"}
 
 def hashh(password):
-    return password
+    return password # TODO hash password
 
 @app.post("/register")
 async def register(request: Request):
