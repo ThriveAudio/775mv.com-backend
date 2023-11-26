@@ -481,7 +481,7 @@ async def login(request: Request):
     res = loads(res.decode())
     print(res)
     session = await db.get_document('sessions', {'id': res['sessionId']})
-    account_id = session['account']
+    # account_id = session['account']
     #account = await db.get_document('accounts', {'_id': account_id})
     account = await db.get_document('accounts', {'email': res['items']['email']})
     # print(test)
@@ -490,31 +490,33 @@ async def login(request: Request):
     if not account:
         return {"result": "error -1"}
     else:
+        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'account': ObjectId(account['_id'])}})
         hashed = hashh(res['items']['password'])
         if account['password'] == hashed:
             # passwords match
-            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer var': 0}})
+            await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': 0}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': 'loggedin'}})
-            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'account': ObjectId(account['_id'])}})
             return {"result": "redirect"}
         else:
             # passwords don't match
             if account['timer var'] == 0:
                 # timer var is zero
-                await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer var': account['timer var']+5}})
-                await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer': time.time() + account['timer var']+5}})
+                print("GOT HERE")
+                print(account['timer var'])
+                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': account['timer var']+5}})
+                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer': time.time() + account['timer var']+5}})
                 return {"result": f"error {time.time() + account['timer var']+5+1}"}
             else:
                 # timer var is more than zero
                 if account['timer'] < time.time():
                     # timer expired
-                    await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer var': account['timer var'] + 5}})
-                    await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer': time.time() + account['timer var'] + 5}})
+                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': account['timer var'] + 5}})
+                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer': time.time() + account['timer var'] + 5}})
                     return {"result": f"error {time.time() + account['timer var'] + 5+1}"}
                 else:
                     # timer still ticking
-                    await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer var': account['timer var'] * 2}})
-                    await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'timer': account['timer'] + account['timer var'] * 2}})
+                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': account['timer var'] * 2}})
+                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer': account['timer'] + account['timer var'] * 2}})
                     return {"result": f"error {account['timer'] + account['timer var'] * 2+1}"}
 
 @app.post("/logout")
