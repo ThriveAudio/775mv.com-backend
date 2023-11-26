@@ -12,3 +12,5 @@
 - [ ] password
   - [ ] hashing
   - [ ] validation
+- [ ] make our own markdown
+- [ ] change short description to markdown
