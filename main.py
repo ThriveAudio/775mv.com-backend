@@ -54,10 +54,10 @@ async def say_hello(name: str):
 
 @app.get("/get-products")
 async def get_products():
-    #print(db.get_collection_as_list('product-information'))
+    #print(db.get_collection_as_list('products'))
     required_fields = ['_id', 'sku', 'name', 'price', 'description']
     checked_docs = []
-    for i in await db.get_collection_as_list('product-information'):
+    for i in await db.get_collection_as_list('products'):
         checked = True
         for field in required_fields:
             if field not in i.keys():
@@ -68,17 +68,17 @@ async def get_products():
         x['id'] = i
     pprint(checked_docs)
     time.sleep(3)
-    return checked_docs#db.get_collection_as_list('product-information')
+    return checked_docs#db.get_collection_as_list('products')
     #return {'products': [{'name': 'filter', 'price': 20}, {'name': 'filter2', 'price': 10}]}
 
 
 @app.get("/get-product/{sku}")
 async def product(sku: str):
     print(sku)
-    doc = await db.get_document('product-information', {'sku': sku})
-    with open('static/pen_holder/desc.md') as f:
+    doc = await db.get_document('products', {'sku': sku})
+    with open(f'static/{sku}/desc.md') as f:
         doc['desc'] = f.read()
-    with open('static/pen_holder/specs.md') as f:
+    with open(f'static/{sku}/specs.md') as f:
         doc['specs'] = f.read()
 
     return doc
@@ -145,7 +145,7 @@ async def get_cart(request: Request):
     print(account)
 
     for item in account['cart']:
-        db_item = await db.get_document('product-information', {'sku': item['sku']})
+        db_item = await db.get_document('products', {'sku': item['sku']})
         item['price'] = db_item['price']
         item['name'] = db_item['name']
         item['description'] = db_item['description']
@@ -287,7 +287,7 @@ async def authorize(request: Request):
     line_items = apicontractsv1.ArrayOfLineItem()
     total_price = 0
     for item in account['cart']:
-        original_item = await db.get_document('product-information', {'sku': item['sku']})
+        original_item = await db.get_document('products', {'sku': item['sku']})
         total_price += int(item['amount']) * original_item['price']
 
         line_item = apicontractsv1.lineItemType()
@@ -347,7 +347,7 @@ async def authorize(request: Request):
                 items = []
                 for i in account['cart']:
                     items.append({
-                        "id": (await db.get_document("product-information", {"sku": i['sku']}))['_id'],
+                        "id": (await db.get_document("products", {"sku": i['sku']}))['_id'],
                         "amount": i['amount']
                     })
                 order_id = await db.post_document("orders", {
@@ -426,7 +426,7 @@ async def authorize(request: Request):
 async def get_order(request: Request, id: str):
     order = await db.get_document('orders', {'_id': ObjectId(id)})
     for i, item in enumerate(order['items']):
-        product = await db.get_document('product-information', {'_id': ObjectId(item['id'])})
+        product = await db.get_document('products', {'_id': ObjectId(item['id'])})
         order['items'][i]['sku'] = product['sku']
         order['items'][i]['price'] = product['price']
     print(order)
@@ -598,7 +598,7 @@ async def orders(request: Request):
             items = 0
             total = 0
             for item in db_order['items']:
-                product = await db.get_document('product-information', {'_id': ObjectId(item['id'])})
+                product = await db.get_document('products', {'_id': ObjectId(item['id'])})
                 items += item['amount']
                 total += item['amount'] * product['price']
             order['items'] = items
