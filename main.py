@@ -380,8 +380,10 @@ async def authorize(request: Request):
                     "items": items
                 })
 
+                account['orders'].append(ObjectId(order_id.inserted_id))
                 await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'cart': []}})
                 await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['shipping']['email']}})
+                await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'orders': account['orders']}})
                 await db.db['orders'].update_one({'type': 'last_id'}, {'$set': {'id': new_id}})
                 config = await db.get_document("config", {'type': 'config'})
 
@@ -573,3 +575,36 @@ async def update_settings(request: Request):
 
     if success:
         return {"result": "success"}
+
+@app.post("/orders")
+async def orders(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+
+    if session['state'] == "loggedin":
+
+        account_id = session['account']
+        account = await db.get_document('accounts', {'_id': account_id})
+
+        order_list = {"result": "success", "items": []}
+
+        for i in account['orders']:
+            order = {}
+            db_order = await db.get_document('orders', {'_id': i})
+            order['id'] = db_order['id']
+            order['db_id'] = db_order['_id']
+            order['order_status'] = db_order['order_status']
+            items = 0
+            total = 0
+            for item in db_order['items']:
+                product = await db.get_document('product-information', {'_id': ObjectId(item['id'])})
+                items += item['amount']
+                total += item['amount'] * product['price']
+            order['items'] = items
+            order['total'] = total
+            order_list['items'].append(order)
+
+        return order_list
+    else:
+        return {"result": "error"}
