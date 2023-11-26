@@ -521,3 +521,55 @@ async def logout(request: Request):
     res = loads(res.decode())
     await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "registered"}})
     return {'result': "redirect"}
+
+@app.post("/settings")
+async def settings(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+    account_id = session['account']
+    account = await db.get_document('accounts', {'_id': account_id})
+
+    response = {"result": "success"}
+    response['email'] = account['email']
+    response['email confirmed'] = account['email confirmed']
+    response['password'] = ""
+
+    if session['state'] == "loggedin":
+        return response
+    else:
+        return {"result": "error"}
+
+def validate_email(email):
+    # TODO proper email validation
+    return True
+
+def validate_password(password):
+    # TODO proper password validation
+    return True
+
+@app.post("/update-settings")
+async def update_settings(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+    account_id = session['account']
+    account = await db.get_document('accounts', {'_id': account_id})
+    print(res)
+    success = False
+
+    if res['items']['email'] != account['email']:
+        if validate_email(res['items']['email']):
+            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
+            success = True
+        else:
+            return {"result": "error email"}
+    if res['items']['password'] != "":
+        if validate_password(res['items']['password']):
+            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashh(res['items']['password'])}})
+            success = True
+        else:
+            return {"result": "error password"}
+
+    if success:
+        return {"result": "success"}
