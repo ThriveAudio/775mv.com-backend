@@ -550,7 +550,6 @@ async def settings(request: Request):
         return {"result": "error"}
 
 def validate_email(email):
-    # TODO proper email validation
     return re.match(".+@.+\..+", email)
 
 def validate_password(password):
