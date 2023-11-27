@@ -220,6 +220,10 @@ async def authorize(request: Request):
     last_id = (await db.get_document('orders', {"type": "last_id"}))['id']
     new_id = last_id + random.randint(1, 13)
 
+    # Check for cart
+    if not account['cart']:
+        return {"result": "missing cart"}
+
     # Check for shipping information
     for item in res['items']:
         if item != ['expanded']:
@@ -230,10 +234,6 @@ async def authorize(request: Request):
             for i in res['items'][item].keys():
                 if res['items'][item][i] == "" and i != "address2":
                     return {"result": f"missing {item} {i}"}
-
-    # Check for cart
-    if not account['cart']:
-        return {"result": "missing cart"}
 
     # Create a merchantAuthenticationType object with authentication details
     # retrieved from the constants file
