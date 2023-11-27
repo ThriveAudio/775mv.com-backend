@@ -13,4 +13,4 @@
   - [ ] hashing
   - [ ] validation
 - [ ] make our own markdown
-- [ ] change short description to markdown
+- [x] change short description to markdown
