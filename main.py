@@ -80,6 +80,8 @@ async def product(sku: str):
         doc['desc'] = f.read()
     with open(f'static/{sku}/specs.md') as f:
         doc['specs'] = f.read()
+    with open(f'static/{sku}/short_desc.md') as f:
+        doc['description'] = f.read()
 
     return doc
 
