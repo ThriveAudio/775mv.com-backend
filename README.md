@@ -4,7 +4,7 @@
 
 - [ ] email
   - [ ] confirmation
-  - [ ] validation
+  - [x] validation
 - [ ] order
   - [ ] proper email to customer
   - [ ] email us on new order

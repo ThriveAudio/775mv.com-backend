@@ -234,6 +234,9 @@ async def authorize(request: Request):
             for i in res['items'][item].keys():
                 if res['items'][item][i] == "" and i != "address2":
                     return {"result": f"missing {item} {i}"}
+                if item == "shipping" and i == "email":
+                    if not validate_email(res['items'][item][i]):
+                        return {"result": "wrong email"}
 
     # Create a merchantAuthenticationType object with authentication details
     # retrieved from the constants file
@@ -548,7 +551,7 @@ async def settings(request: Request):
 
 def validate_email(email):
     # TODO proper email validation
-    return True
+    return re.match(".+@.+\..+", email)
 
 def validate_password(password):
     # TODO proper password validation
