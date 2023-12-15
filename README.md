@@ -3,7 +3,7 @@
 ## todo
 
 - [ ] email
-  - [ ] confirmation
+  - [x] confirmation
   - [x] validation
 - [ ] order
   - [ ] proper email to customer
