@@ -12,6 +12,7 @@ from bson import ObjectId
 import json
 import yagmail
 import re
+from jinja2 import Environment, FileSystemLoader
 
 app = FastAPI()
 
@@ -89,8 +90,8 @@ async def product(sku: str):
 @app.get("/session-id")
 async def new_session_id():
     doc = await db.post_document('accounts', {
-        "email": "",
-        "email confirmed": False,
+        "new_emails": {},
+        "emails": [],
         "password": "",
         "timer var": 0,
         "timer": 0,
@@ -234,9 +235,6 @@ async def authorize(request: Request):
             for i in res['items'][item].keys():
                 if res['items'][item][i] == "" and i != "address2":
                     return {"result": f"missing {item} {i}"}
-                if item == "shipping" and i == "email":
-                    if not validate_email(res['items'][item][i]):
-                        return {"result": "wrong email"}
 
     # Create a merchantAuthenticationType object with authentication details
     # retrieved from the constants file
@@ -387,7 +385,7 @@ async def authorize(request: Request):
 
                 account['orders'].append(ObjectId(order_id.inserted_id))
                 await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'cart': []}})
-                await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['shipping']['email']}})
+                # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['shipping']['email']}})
                 await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'orders': account['orders']}})
                 await db.db['orders'].update_one({'type': 'last_id'}, {'$set': {'id': new_id}})
                 config = await db.get_document("config", {'type': 'config'})
@@ -466,7 +464,7 @@ async def register(request: Request):
         else:
             return {"result": "error"}
     else:
-        await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
+        # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
         await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
         config = await db.get_document("config", {'type': 'config'})
         email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
@@ -614,3 +612,68 @@ async def orders(request: Request):
         return order_list
     else:
         return {"result": "error"}
+
+@app.post("/confirm-email")
+async def confirm_email(request: Request):
+    # new UUID
+    # record new email
+    # send confirmation email
+    res = await request.body()
+    res = loads(res.decode())
+    if not re.match(".+@.+\..+", res['email']):
+        return {"result": "error"}
+
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+    account_id = session['account']
+    account = await db.get_document('accounts', {'_id': account_id})
+
+    for email in account['emails']:
+        if email == res['email']:
+            return {"result": "confirmed"}
+
+    uid = str(uuid.uuid4())
+    account['new_emails'][uid] = res['email']
+    await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'new_emails': account['new_emails']}})
+
+    config = await db.get_document("config", {'type': 'config'})
+    email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
+    env = Environment(loader= FileSystemLoader('email_templates'))
+    email.send(res['email'], "775mv Email Confirmation", env.get_template('email-confirmation.html').render(id=uid))
+    return {"result": "success"}
+
+
+@app.post("/email-confirmed")
+async def email_confirmed(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    print(res)
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+    account_id = session['account']
+    account = await db.get_document('accounts', {'_id': account_id})
+    for email in account['emails']:
+        if email == res['email']:
+            return {"result": True}
+    return {'result': False}
+
+@app.post("/check-email-id/{id}")
+async def check_email_id(request: Request, id: str):
+    res = await request.body()
+    res = loads(res.decode())
+    print(res, id)
+    # session = await db.get_document('sessions', {'id': res['sessionId']})
+    # account_id = session['account']
+    # account = await db.get_document('accounts', {'_id': account_id})
+    accounts = await db.get_collection_as_list('accounts')
+    for account in accounts:
+        for i in account['new_emails'].keys():
+            if i == id:
+                account['emails'].append(account['new_emails'][i])
+                account['new_emails'].pop(i)
+                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'emails': account['emails']}})
+                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'new_emails': account['new_emails']}})
+                return {"result": "success"}
+    # for i in account['email_ids']:
+    #     if i == id:
+    #         return {"result": "success"}
+
+    return {"result": "error"}
