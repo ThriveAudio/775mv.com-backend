@@ -91,7 +91,8 @@ async def product(sku: str):
 async def new_session_id():
     doc = await db.post_document('accounts', {
         "new_emails": {},
-        "emails": [],
+        "email": "",
+        "old_emails": [],
         "password": "",
         "timer var": 0,
         "timer": 0,
@@ -466,15 +467,6 @@ async def register(request: Request):
     else:
         # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
         await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
-        config = await db.get_document("config", {'type': 'config'})
-        email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
-        email.send(res['items']['email'], f"775mv Email Confirmation",
-                   f'''Hi there!
-                   
-                   Please confirm your email by clicking this link: <a href="http://127.0.0.1:3000/account/confirm-email/{str(account_id)}">Confirm Email</a>
-                   
-                   Thank you!
-                   Thrive Audio LLC Team''')
         await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
         return {"result": "redirect"}
 
@@ -620,14 +612,17 @@ async def confirm_email(request: Request):
     # send confirmation email
     res = await request.body()
     res = loads(res.decode())
-    if not re.match(".+@.+\..+", res['email']):
+    if not validate_email(res['email']):
         return {"result": "error"}
 
     session = await db.get_document('sessions', {'id': res['sessionId']})
     account_id = session['account']
     account = await db.get_document('accounts', {'_id': account_id})
 
-    for email in account['emails']:
+    if account['email'] == res['email']:
+        return {"result": "confirmed"}
+
+    for email in account['old_emails']:
         if email == res['email']:
             return {"result": "confirmed"}
 
@@ -650,9 +645,14 @@ async def email_confirmed(request: Request):
     session = await db.get_document('sessions', {'id': res['sessionId']})
     account_id = session['account']
     account = await db.get_document('accounts', {'_id': account_id})
-    for email in account['emails']:
+
+    if account['email'] == res['email']:
+        return {"result": True}
+
+    for email in account['old_emails']:
         if email == res['email']:
             return {"result": True}
+
     return {'result': False}
 
 @app.post("/check-email-id/{id}")
@@ -667,9 +667,12 @@ async def check_email_id(request: Request, id: str):
     for account in accounts:
         for i in account['new_emails'].keys():
             if i == id:
-                account['emails'].append(account['new_emails'][i])
+                if account['email'] != "":
+                    account['old_emails'].append(account['email'])
+                account['email'] = account['new_emails'][i]
                 account['new_emails'].pop(i)
-                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'emails': account['emails']}})
+                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'email': account['email']}})
+                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'old_emails': account['old_emails']}})
                 await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'new_emails': account['new_emails']}})
                 return {"result": "success"}
     # for i in account['email_ids']:
