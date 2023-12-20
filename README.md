@@ -8,6 +8,8 @@
 - [x] redo password saving in settings
 - [ ] order
   - [ ] proper email to customer
+    - [ ] convert item ids to cart item info
+    - [ ] compose the email
   - [ ] email us on new order
   - [ ] include shipping price in emails
   - [ ] edit shipping information (after launch) 
