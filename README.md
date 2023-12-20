@@ -10,6 +10,7 @@
   - [ ] proper email to customer
   - [ ] email us on new order
   - [ ] include shipping price in emails
+  - [ ] edit shipping information (after launch) 
 - [ ] password
   - [ ] hashing
   - [ ] validation
