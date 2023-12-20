@@ -5,6 +5,7 @@
 - [ ] email
   - [x] confirmation
   - [x] validation
+- [ ] redo password saving in settings
 - [ ] order
   - [ ] proper email to customer
   - [ ] email us on new order

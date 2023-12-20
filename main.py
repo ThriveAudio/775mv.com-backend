@@ -531,7 +531,7 @@ async def settings(request: Request):
 
     response = {"result": "success"}
     response['email'] = account['email']
-    response['email confirmed'] = account['email confirmed']
+    # response['email confirmed'] = account['email confirmed']
     response['password'] = ""
 
     if session['state'] == "loggedin":
@@ -546,31 +546,21 @@ def validate_password(password):
     # TODO proper password validation
     return True
 
-@app.post("/update-settings")
-async def update_settings(request: Request):
+@app.post("/update-password")
+async def update_password(request: Request):
     res = await request.body()
     res = loads(res.decode())
     session = await db.get_document('sessions', {'id': res['sessionId']})
     account_id = session['account']
-    account = await db.get_document('accounts', {'_id': account_id})
+    # account = await db.get_document('accounts', {'_id': account_id})
     print(res)
-    success = False
 
-    if res['items']['email'] != account['email']:
-        if validate_email(res['items']['email']):
-            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
-            success = True
-        else:
-            return {"result": "error email"}
     if res['items']['password'] != "":
         if validate_password(res['items']['password']):
             await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashh(res['items']['password'])}})
-            success = True
+            return {"result": "success"}
         else:
-            return {"result": "error password"}
-
-    if success:
-        return {"result": "success"}
+            return {"result": "error"}
 
 @app.post("/orders")
 async def orders(request: Request):
@@ -622,8 +612,15 @@ async def confirm_email(request: Request):
     if account['email'] == res['email']:
         return {"result": "confirmed"}
 
-    for email in account['old_emails']:
+    for i, email in enumerate(account['old_emails']):
         if email == res['email']:
+            account['old_emails'].append(account['email'])
+            account['email'] = email
+            account['old_emails'].pop(i)
+
+            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': account['email']}})
+            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'old_emails': account['old_emails']}})
+
             return {"result": "confirmed"}
 
     uid = str(uuid.uuid4())
