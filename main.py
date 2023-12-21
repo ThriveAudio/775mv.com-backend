@@ -392,7 +392,26 @@ async def authorize(request: Request):
                 config = await db.get_document("config", {'type': 'config'})
 
                 email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
-                email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation", f"{res}")
+
+                # env = Environment(loader=FileSystemLoader('email_templates'))
+                # email.send(res['email']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation",env.get_template('email-confirmation.html').render(user=res, items=items))
+
+                total = 0
+                amount = 0
+                for item in account['cart']:
+                    db_item = await db.get_document('products', {'sku': item['sku']})
+                    item['price'] = db_item['price']
+                    item['name'] = db_item['name']
+                    amount += item['amount']
+                    total += item['price'] * item['amount']
+
+                res['items']['total'] = total
+                res['items']['amount'] = amount
+
+                # email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation", f"{res} {account['cart']}")
+                env = Environment(loader=FileSystemLoader('email_templates'))
+
+                email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation",env.get_template('order-confirmation.html').render(user=res['items'], items=account['cart']))
 
                 return {"result" : f"success {order_id.inserted_id}"}
             else:
