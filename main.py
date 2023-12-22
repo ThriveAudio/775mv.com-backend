@@ -697,3 +697,8 @@ async def check_email_id(request: Request, id: str):
     #         return {"result": "success"}
 
     return {"result": "error"}
+
+@app.post("/get-shipping-methods")
+async def get_shipping_methods(request: Request):
+    config = await db.get_document("config", {'type': 'config'})
+    return config['shipping_price']
