@@ -7,12 +7,12 @@
   - [x] validation
 - [x] redo password saving in settings
 - [ ] order
-  - [ ] proper email to customer
-    - [ ] convert item ids to cart item info
-    - [ ] compose the email
-  - [ ] email us on new order
+  - [x] proper email to customer
+    - [x] convert item ids to cart item info
+    - [x] compose the email
+  - [x] email us on new order
   - [ ] include shipping price in emails
-  - [ ] edit shipping information (after launch) 
+  - [ ] ability for client to edit shipping information (after launch) 
 - [ ] password
   - [ ] hashing
   - [ ] validation
