@@ -1,0 +1,14 @@
+Order by {{user.shipping.first_name}} {{user.shipping.last_name}}
+{% for item in items %}
+{{item.amount}}x {{item.name}}
+{% endfor %}
+Total: ${{user.total}}
+
+
+Shipping:
+{{user.shipping['address1']}}
+{{user.shipping['address2']}}
+{{user.shipping['city']}}
+{{user.shipping['state']}}
+{{user.shipping['zip']}}
+{{user.shipping['country']}}

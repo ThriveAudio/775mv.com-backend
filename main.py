@@ -411,7 +411,8 @@ async def authorize(request: Request):
                 # email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation", f"{res} {account['cart']}")
                 env = Environment(loader=FileSystemLoader('email_templates'))
 
-                email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation",env.get_template('order-confirmation.html').render(user=res['items'], items=account['cart']))
+                email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation",env.get_template('order-confirmation.html').render(user=res['items'], items=account['cart'], id=order_id.inserted_id))
+                email.send("thriveaudiollc@gmail.com", f"TEST New Order #{new_id} | {res['items']['shipping']['first_name']} {res['items']['shipping']['last_name']}", env.get_template('new-order.html').render(user=res['items'], items=account['cart']))
 
                 return {"result" : f"success {order_id.inserted_id}"}
             else:

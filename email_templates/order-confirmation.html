@@ -1,33 +1,12 @@
-<body><center>
-    Dear {{user.shipping.first_name}} {{user.shipping.last_name}},
+Dear {{user.shipping.first_name}} {{user.shipping.last_name}},
 
 Here is your order summary:
-<table>
-    <thead>
-        <tr>
-            <th>Product</th>
-            <th>Unit Price</th>
-            <th>Amount</th>
-            <th>Total Price</th>
-        </tr>
-    </thead>
-    <tbody>
-    {% for item in items %}
-        <tr>
-            <th>{{item.name}}</th>
-            <th>{{item.price}}</th>
-            <th>{{item.amount}}</th>
-            <th>{{item.price * item.amount}}</th>
-        </tr>
-    {% endfor %}
-    </tbody><tfoot>
-        <tr>
-            <th>Summary</th>
-            <th></th>
-            <th>{{user.amount}}</th>
-            <th>{{user.total}}</th>
-        </tr>
-    </tfoot>
-</table>
+{% for item in items %}
+${{item.price * item.amount}} {{item.amount}}x {{item.name}}
+{% endfor %}
+Total: ${{user.total}} for {{user.amount}} {% if user.amount > 1 %}items{% else %}item{% endif %}.
 
-    <style>th {padding: 8px;}table {background-color: #22242E;border-radius: 8px;border: none; border-collapse: collapse;} table td { border-left: 1px solid #d4d6dd; } table td:first-child { border-left: none; } body{margin: 8px;color: #d4d6dd;background-color: #272A37}</style></center></body>
+<a href="http://127.0.0.1:3000/account/orders/{{id}}">View this on the website</a>
+
+Best regards,
+Thrive Audio LLC Team
