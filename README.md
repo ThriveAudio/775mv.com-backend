@@ -2,7 +2,7 @@
 
 ## todo
 
-- [ ] email
+- [x] email
   - [x] confirmation
   - [x] validation
 - [x] redo password saving in settings
