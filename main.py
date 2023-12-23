@@ -491,6 +491,12 @@ async def register(request: Request):
     account_id = session['account']
     account = await db.get_document('accounts', {'_id': account_id})
     hashed = hashh(res['items']['password'])
+    config = await db.get_document("config", {'type': 'config'})
+    session_length = 0
+    if res['items']['check']:
+        session_length = config['long_session']
+    else:
+        session_length = config['short_session']
 
     print(res)
 
@@ -498,6 +504,7 @@ async def register(request: Request):
         if account['password'] == hashed:
             # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time() + session_length}})
             return {"result": "redirect"}
         else:
             return {"result": "error"}
@@ -505,6 +512,7 @@ async def register(request: Request):
         # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
         await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
         await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
+        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time() + session_length}})
         return {"result": "redirect"}
 
 @app.post("/login")
@@ -516,7 +524,12 @@ async def login(request: Request):
     # account_id = session['account']
     #account = await db.get_document('accounts', {'_id': account_id})
     account = await db.get_document('accounts', {'email': res['items']['email']})
-    # print(test)
+    config = await db.get_document("config", {'type': 'config'})
+    session_length = 0
+    if res['items']['check']:
+        session_length = config['long_session']
+    else:
+        session_length = config['short_session']
 
     # Check if account exists
     if not account:
@@ -528,6 +541,7 @@ async def login(request: Request):
             # passwords match
             await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': 0}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': 'loggedin'}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time()+session_length}})
             return {"result": "redirect"}
         else:
             # passwords don't match
@@ -730,3 +744,9 @@ async def check_email_id(request: Request, id: str):
 async def get_shipping_methods(request: Request):
     config = await db.get_document("config", {'type': 'config'})
     return config['shipping_price']
+
+@app.post("/keep-alive")
+async def keep_alive(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    print(res['value'])
