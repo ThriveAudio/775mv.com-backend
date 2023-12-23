@@ -216,6 +216,7 @@ async def authorize(request: Request):
     session = await db.get_document('sessions', {'id': res['sessionId']})
     account_id = session['account']
     account = await db.get_document('accounts', {'_id': account_id})
+    config = await db.get_document("config", {'type': 'config'})
 
     print(res)
 
@@ -307,7 +308,17 @@ async def authorize(request: Request):
     line_item.name = 'Shipping price'
     line_item.description = 'The shipping cost'
     line_item.quantity = '1'
-    line_item.unitPrice = '8.5'
+
+    shipping_added = False
+    for country in config['shipping_price'].keys():
+        if country == res['items']['shipping']['country']:
+            line_item.unitPrice = str(config['shipping_price'][country])
+            total_price += config['shipping_price'][country]
+            shipping_added = True
+    if not shipping_added:
+        line_item.unitPrice = str(config['shipping_price']["Worldwide"])
+        total_price += config['shipping_price']["Worldwide"]
+
     line_items.lineItem.append(line_item)
 
     # Create a transactionRequestType object and add the previous objects to it.
@@ -607,6 +618,17 @@ async def orders(request: Request):
                 product = await db.get_document('products', {'_id': ObjectId(item['id'])})
                 items += item['amount']
                 total += item['amount'] * product['price']
+
+            config = await db.get_document("config", {'type': 'config'})
+
+            shipping_added = False
+            for i, x in enumerate(config['shipping_price'].keys()):
+                if db_order['user']['shipping']['country'] == x:
+                    total += config['shipping_price'][db_order['user']['shipping']['country']]
+                    shipping_added = True
+            if not shipping_added:
+                total += config['shipping_price']["Worldwide"]
+
             order['items'] = items
             order['total'] = total
             order_list['items'].append(order)
