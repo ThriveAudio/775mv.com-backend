@@ -4,6 +4,8 @@ Here is your order summary:
 {% for item in items %}
 ${{item.price * item.amount}} {{item.amount}}x {{item.name}}
 {% endfor %}
+${{user.shipping.price}} Shipping
+
 Total: ${{user.total}} for {{user.amount}} {% if user.amount > 1 %}items{% else %}item{% endif %}.
 
 <a href="http://127.0.0.1:3000/account/orders/{{id}}">View this on the website</a>

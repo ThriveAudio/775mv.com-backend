@@ -310,14 +310,17 @@ async def authorize(request: Request):
     line_item.quantity = '1'
 
     shipping_added = False
+    shipping_price = 0
     for country in config['shipping_price'].keys():
         if country == res['items']['shipping']['country']:
             line_item.unitPrice = str(config['shipping_price'][country])
             total_price += config['shipping_price'][country]
+            shipping_price = config['shipping_price'][country]
             shipping_added = True
     if not shipping_added:
         line_item.unitPrice = str(config['shipping_price']["Worldwide"])
         total_price += config['shipping_price']["Worldwide"]
+        shipping_price = config['shipping_price']["Worldwide"]
 
     line_items.lineItem.append(line_item)
 
@@ -389,7 +392,8 @@ async def authorize(request: Request):
                             "city": res['items']['shipping']['city'],
                             "state": res['items']['shipping']['state'],
                             "zip": res['items']['shipping']['zip'],
-                            "country": res['items']['shipping']['country']
+                            "country": res['items']['shipping']['country'],
+                            "price": shipping_price
                         }
                     },
                     "items": items
@@ -415,7 +419,9 @@ async def authorize(request: Request):
                     item['name'] = db_item['name']
                     amount += item['amount']
                     total += item['price'] * item['amount']
+                total += shipping_price
 
+                res['items']['shipping']['price'] = shipping_price
                 res['items']['total'] = total
                 res['items']['amount'] = amount
 
