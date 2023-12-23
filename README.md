@@ -11,7 +11,7 @@
     - [x] convert item ids to cart item info
     - [x] compose the email
   - [x] email us on new order
-  - [ ] include shipping price in emails
+  - [x] include shipping price in emails
   - [ ] ability for client to edit shipping information (after launch) 
 - [ ] password
   - [ ] hashing
