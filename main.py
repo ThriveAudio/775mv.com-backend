@@ -768,3 +768,14 @@ async def logout_expired_sessions():
     for session in sessions:
         if time.time() > session['expiration']:
             await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'unknown'}})
+            doc = await db.post_document('accounts', {
+                "new_emails": {},
+                "email": "",
+                "old_emails": [],
+                "password": "",
+                "timer var": 0,
+                "timer": 0,
+                "cart": [],
+                "orders": []
+            })
+            await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'account': doc.inserted_id}})
