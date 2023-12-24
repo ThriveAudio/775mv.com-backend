@@ -4,6 +4,7 @@ import uuid
 #from pymongo import MongoClient
 from motor import motor_asyncio
 from fastapi import FastAPI, Request
+from fastapi_utils.tasks import repeat_every
 from pprint import pprint
 from json import loads
 from authorizenet import apicontractsv1
@@ -107,7 +108,8 @@ async def new_session_id():
         "id": uid,
         "account": doc.inserted_id,
         "state": "unknown",
-        "expiration": time.time()+config['short_session']
+        "expiration": time.time()+config['short_session'],
+        "trusted_device": False
     })
 
     return {"sessionId": uid}
@@ -505,6 +507,7 @@ async def register(request: Request):
             # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time() + session_length}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'trusted_device': res['items']['check']}})
             return {"result": "redirect"}
         else:
             return {"result": "error"}
@@ -513,6 +516,7 @@ async def register(request: Request):
         await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
         await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
         await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time() + session_length}})
+        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'trusted_device': res['items']['check']}})
         return {"result": "redirect"}
 
 @app.post("/login")
@@ -542,6 +546,7 @@ async def login(request: Request):
             await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': 0}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': 'loggedin'}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time()+session_length}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'trusted_device': res['items']['check']}})
             return {"result": "redirect"}
         else:
             # passwords don't match
@@ -749,4 +754,17 @@ async def get_shipping_methods(request: Request):
 async def keep_alive(request: Request):
     res = await request.body()
     res = loads(res.decode())
-    print(res['value'])
+    print(res)
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+    if not session['trusted_device']:
+        if time.time() < session['expiration']:
+            config = await db.get_document("config", {'type': 'config'})
+            await db.db['accounts'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time()+config['short_session']}})
+
+@app.on_event("startup")
+@repeat_every(seconds=60)
+async def logout_expired_sessions():
+    sessions = await db.get_collection_as_list('sessions')
+    for session in sessions:
+        if time.time() > session['expiration']:
+            await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'unknown'}})
