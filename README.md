@@ -18,9 +18,9 @@
   - [ ] validation
 - [ ] make our own markdown
 - [x] change short description to markdown
-- [ ] trusted device
+- [x] trusted device
   - [x] on
     - [x] long expiration
-  - [ ] off
+  - [x] off
     - [x] short expiration
-    - [ ] reassign to anonymous account on logout
+    - [x] reassign to anonymous account on logout
