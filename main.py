@@ -759,14 +759,14 @@ async def keep_alive(request: Request):
     if not session['trusted_device']:
         if time.time() < session['expiration']:
             config = await db.get_document("config", {'type': 'config'})
-            await db.db['accounts'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time()+config['short_session']}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time()+config['short_session']}})
 
 @app.on_event("startup")
 @repeat_every(seconds=60)
 async def logout_expired_sessions():
     sessions = await db.get_collection_as_list('sessions')
     for session in sessions:
-        if time.time() > session['expiration']:
+        if session['state'] != "unknown" and time.time() > session['expiration']:
             await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'unknown'}})
             doc = await db.post_document('accounts', {
                 "new_emails": {},
@@ -779,3 +779,4 @@ async def logout_expired_sessions():
                 "orders": []
             })
             await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'account': doc.inserted_id}})
+            await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'trusted_device': False}})
