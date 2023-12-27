@@ -14,6 +14,7 @@ import json
 import yagmail
 import re
 from jinja2 import Environment, FileSystemLoader
+import bcrypt
 
 app = FastAPI()
 
@@ -95,6 +96,7 @@ async def new_session_id():
         "email": "",
         "old_emails": [],
         "password": "",
+        "salt": "",
         "timer var": 0,
         "timer": 0,
         "cart": [],
@@ -482,8 +484,10 @@ async def check_loggedin(request: Request):
     session = await db.get_document('sessions', {'id': res['sessionId']})
     return {"result": session['state'] == "loggedin"}
 
-def hashh(password):
-    return password # TODO hash password
+def hashh(password: str, salt: str):
+    password = password.encode('utf-8')
+    salt = salt.encode('utf-8')
+    return str(bcrypt.hashpw(password, salt), encoding="utf-8") # TODO hash password
 
 @app.post("/register")
 async def register(request: Request):
@@ -492,7 +496,6 @@ async def register(request: Request):
     session = await db.get_document('sessions', {'id': res['sessionId']})
     account_id = session['account']
     account = await db.get_document('accounts', {'_id': account_id})
-    hashed = hashh(res['items']['password'])
     config = await db.get_document("config", {'type': 'config'})
     session_length = 0
     if res['items']['check']:
@@ -503,6 +506,7 @@ async def register(request: Request):
     print(res)
 
     if session['state'] == "registered" or session['state'] == "loggedin":
+        hashed = hashh(res['items']['password'], account['salt'])
         if account['password'] == hashed:
             # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
@@ -513,6 +517,9 @@ async def register(request: Request):
             return {"result": "error"}
     else:
         if validate_password(res['items']['password']):
+            salt = str(bcrypt.gensalt(), encoding="utf-8")
+            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'salt': salt}})
+            hashed = hashh(res['items']['password'], salt)
             # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
             await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
@@ -543,7 +550,7 @@ async def login(request: Request):
         return {"result": "error -1"}
     else:
         await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'account': ObjectId(account['_id'])}})
-        hashed = hashh(res['items']['password'])
+        hashed = hashh(res['items']['password'], account['salt'])
         if account['password'] == hashed:
             # passwords match
             await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': 0}})
@@ -635,12 +642,12 @@ async def update_password(request: Request):
     res = loads(res.decode())
     session = await db.get_document('sessions', {'id': res['sessionId']})
     account_id = session['account']
-    # account = await db.get_document('accounts', {'_id': account_id})
+    account = await db.get_document('accounts', {'_id': account_id})
     print(res)
 
     if res['items']['password'] != "":
         if validate_password(res['items']['password']):
-            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashh(res['items']['password'])}})
+            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashh(res['items']['password'], account['salt'])}})
             return {"result": "success"}
         else:
             return {"result": "error"}
