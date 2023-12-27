@@ -13,9 +13,9 @@
   - [x] email us on new order
   - [x] include shipping price in emails
   - [ ] ability for client to edit shipping information (after launch) 
-- [ ] password
-  - [ ] hashing
-  - [ ] validation
+- [x] password
+  - [x] hashing
+  - [x] validation
 - [ ] make our own markdown
 - [x] change short description to markdown
 - [x] trusted device
@@ -24,3 +24,5 @@
   - [x] off
     - [x] short expiration
     - [x] reassign to anonymous account on logout
+- [ ] reuse empty unused anonymous accounts?
+- [ ] 2FA for updating password
