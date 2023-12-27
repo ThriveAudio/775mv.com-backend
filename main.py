@@ -512,12 +512,15 @@ async def register(request: Request):
         else:
             return {"result": "error"}
     else:
-        # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
-        await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
-        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
-        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time() + session_length}})
-        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'trusted_device': res['items']['check']}})
-        return {"result": "redirect"}
+        if validate_password(res['items']['password']):
+            # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
+            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time() + session_length}})
+            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'trusted_device': res['items']['check']}})
+            return {"result": "redirect"}
+        else:
+            return {"result": "password"}
 
 @app.post("/login")
 async def login(request: Request):
@@ -616,7 +619,14 @@ def validate_email(email):
     return re.match(".+@.+\..+", email)
 
 def validate_password(password):
-    # TODO proper password validation
+    if not re.search("[0-9]+", password):
+        return False
+    if not re.search("[a-z]+", password):
+        return False
+    if not re.search("[A-Z]+", password):
+        return False
+    if not re.search("[^a-zA-Z0-9 \n]+", password):
+        return False
     return True
 
 @app.post("/update-password")
@@ -783,7 +793,7 @@ async def keep_alive(request: Request):
 async def logout_expired_sessions():
     sessions = await db.get_collection_as_list('sessions')
     for session in sessions:
-        if time.time() > session['expiration']:
+        if time.time() > session['expiration'] and session['state'] != "unknown":
             if not session['trusted_device']:
                 await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'unknown'}})
                 doc = await db.post_document('accounts', {
