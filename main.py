@@ -574,7 +574,24 @@ async def login(request: Request):
 async def logout(request: Request):
     res = await request.body()
     res = loads(res.decode())
-    await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "registered"}})
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+
+    if session['trusted_device']:
+        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "registered"}})
+    else:
+        await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'unknown'}})
+        doc = await db.post_document('accounts', {
+            "new_emails": {},
+            "email": "",
+            "old_emails": [],
+            "password": "",
+            "timer var": 0,
+            "timer": 0,
+            "cart": [],
+            "orders": []
+        })
+        await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'account': doc.inserted_id}})
+
     return {'result': "redirect"}
 
 @app.post("/settings")
@@ -766,17 +783,19 @@ async def keep_alive(request: Request):
 async def logout_expired_sessions():
     sessions = await db.get_collection_as_list('sessions')
     for session in sessions:
-        if session['state'] != "unknown" and time.time() > session['expiration']:
-            await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'unknown'}})
-            doc = await db.post_document('accounts', {
-                "new_emails": {},
-                "email": "",
-                "old_emails": [],
-                "password": "",
-                "timer var": 0,
-                "timer": 0,
-                "cart": [],
-                "orders": []
-            })
-            await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'account': doc.inserted_id}})
-            await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'trusted_device': False}})
+        if time.time() > session['expiration']:
+            if not session['trusted_device']:
+                await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'unknown'}})
+                doc = await db.post_document('accounts', {
+                    "new_emails": {},
+                    "email": "",
+                    "old_emails": [],
+                    "password": "",
+                    "timer var": 0,
+                    "timer": 0,
+                    "cart": [],
+                    "orders": []
+                })
+                await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'account': doc.inserted_id}})
+            else:
+                await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'registered'}})
