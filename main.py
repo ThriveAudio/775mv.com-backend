@@ -816,3 +816,12 @@ async def logout_expired_sessions():
                 await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'account': doc.inserted_id}})
             else:
                 await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'registered'}})
+
+@app.post("/trusted-check")
+async def trusted_check(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    print(res)
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+    print(session['trusted_device'])
+    return session['trusted_device']
