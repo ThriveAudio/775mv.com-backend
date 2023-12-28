@@ -96,6 +96,7 @@ async def new_session_id():
         "email": "",
         "old_emails": [],
         "password": "",
+        "password_id": "",
         "salt": "",
         "timer var": 0,
         "timer": 0,
@@ -595,6 +596,8 @@ async def logout(request: Request):
             "email": "",
             "old_emails": [],
             "password": "",
+            "password_id": "",
+            "salt": "",
             "timer var": 0,
             "timer": 0,
             "cart": [],
@@ -825,3 +828,43 @@ async def trusted_check(request: Request):
     session = await db.get_document('sessions', {'id': res['sessionId']})
     print(session['trusted_device'])
     return session['trusted_device']
+
+@app.post("/email-password-reset")
+async def email_password_reset(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    if not validate_email(res['email']):
+        return {"result": "invalid"}
+
+    account = await db.get_document('accounts', {'email': res['email']})
+
+    if not isinstance(account, dict):
+        return {"result": "not found"}
+
+    config = await db.get_document("config", {'type': 'config'})
+    email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
+    uid = str(uuid.uuid4())
+    await db.db['accounts'].update_one({'email': res['email']}, {'$set': {'password_id': uid}})
+    env = Environment(loader=FileSystemLoader('email_templates'))
+    email.send(res['email'],
+               f"TEST 775MV Password Reset",
+               env.get_template('password-reset.html').render(id=uid))
+
+    return {"result": "success"}
+
+@app.post("/password-reset")
+async def password_reset(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    print(res)
+    account = await db.get_document('accounts', {'password_id': res['id']})
+
+    if not isinstance(account, dict) or res['id'] == "":
+        return {"result": "error"}
+
+    if not validate_password(res['password']):
+        return {"result": "invalid"}
+
+    await db.db['accounts'].update_one({'email': account['email']}, {'$set': {'password_id': ""}})
+    await db.db['accounts'].update_one({'email': account['email']}, {'$set': {'password': hashh(res['password'], account['salt'])}})
+    return {"result": "success"}
