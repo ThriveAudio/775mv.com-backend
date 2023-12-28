@@ -26,4 +26,4 @@
     - [x] reassign to anonymous account on logout
 - [ ] reuse empty unused anonymous accounts?
 - [ ] 2FA for updating password
-- [ ] password reset
+- [x] password reset
