@@ -490,6 +490,17 @@ def hashh(password: str, salt: str):
     salt = salt.encode('utf-8')
     return str(bcrypt.hashpw(password, salt), encoding="utf-8") # TODO hash password
 
+@app.post("/check-account-exists")
+async def check_account_exists(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    accounts = await db.get_collection_as_list('accounts')
+    for i in accounts:
+        if i['email'] == res['email'] and i['password'] != "":
+            return True
+
+    return False
+
 @app.post("/register")
 async def register(request: Request):
     res = await request.body()
@@ -506,29 +517,34 @@ async def register(request: Request):
 
     print(res)
 
-    if session['state'] == "registered" or session['state'] == "loggedin":
-        hashed = hashh(res['items']['password'], account['salt'])
-        if account['password'] == hashed:
-            # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
-            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
-            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time() + session_length}})
-            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'trusted_device': res['items']['check']}})
-            return {"result": "redirect"}
-        else:
-            return {"result": "error"}
+    # accounts = await db.get_collection_as_list('accounts')
+    # for i in accounts:
+    #     if i['email'] == res['items']['email']:
+    #         return {"result": "error"}
+
+    # if session['state'] == "registered" or session['state'] == "loggedin":
+    #     hashed = hashh(res['items']['password'], account['salt'])
+    #     if account['password'] == hashed:
+    #         # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
+    #         await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
+    #         await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time() + session_length}})
+    #         await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'trusted_device': res['items']['check']}})
+    #         return {"result": "redirect"}
+    #     else:
+    #         return {"result": "error"}
+    # else:
+    if validate_password(res['items']['password']):
+        salt = str(bcrypt.gensalt(), encoding="utf-8")
+        await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'salt': salt}})
+        hashed = hashh(res['items']['password'], salt)
+        # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
+        await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
+        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
+        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time() + session_length}})
+        await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'trusted_device': res['items']['check']}})
+        return {"result": "redirect"}
     else:
-        if validate_password(res['items']['password']):
-            salt = str(bcrypt.gensalt(), encoding="utf-8")
-            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'salt': salt}})
-            hashed = hashh(res['items']['password'], salt)
-            # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['email']}})
-            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashed}})
-            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "loggedin"}})
-            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time() + session_length}})
-            await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'trusted_device': res['items']['check']}})
-            return {"result": "redirect"}
-        else:
-            return {"result": "password"}
+        return {"result": "password"}
 
 @app.post("/login")
 async def login(request: Request):
@@ -838,17 +854,15 @@ async def email_password_reset(request: Request):
 
     account = await db.get_document('accounts', {'email': res['email']})
 
-    if not isinstance(account, dict):
-        return {"result": "not found"}
-
-    config = await db.get_document("config", {'type': 'config'})
-    email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
-    uid = str(uuid.uuid4())
-    await db.db['accounts'].update_one({'email': res['email']}, {'$set': {'password_id': uid}})
-    env = Environment(loader=FileSystemLoader('email_templates'))
-    email.send(res['email'],
-               f"TEST 775MV Password Reset",
-               env.get_template('password-reset.html').render(id=uid))
+    if isinstance(account, dict):
+        config = await db.get_document("config", {'type': 'config'})
+        email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
+        uid = str(uuid.uuid4())
+        await db.db['accounts'].update_one({'email': res['email']}, {'$set': {'password_id': uid}})
+        env = Environment(loader=FileSystemLoader('email_templates'))
+        email.send(res['email'],
+                   f"TEST 775MV Password Reset",
+                   env.get_template('password-reset.html').render(id=uid))
 
     return {"result": "success"}
 
