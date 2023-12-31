@@ -27,3 +27,4 @@
 - [ ] reuse empty unused anonymous accounts?
 - [ ] 2FA for updating password
 - [x] password reset
+- [ ] account/session/other? garbage collector
