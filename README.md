@@ -28,5 +28,5 @@
 - [ ] 2FA for updating password
 - [x] password reset
 - [x] include old password in password update form
-- [ ] add phone number to checkout 
+- [x] add phone number to checkout 
 - [ ] account/session/other? garbage collector

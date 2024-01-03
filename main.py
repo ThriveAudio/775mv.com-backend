@@ -392,6 +392,7 @@ async def authorize(request: Request):
                             "first_name": res['items']['shipping']['first_name'],
                             "last_name": res['items']['shipping']['last_name'],
                             "email": res['items']['shipping']['email'],
+                            "phone": res['items']['shipping']['phone']
                         },
                         "shipping": {
                             "address1": res['items']['shipping']['address1'],
