@@ -27,4 +27,6 @@
 - [ ] reuse empty unused anonymous accounts?
 - [ ] 2FA for updating password
 - [x] password reset
+- [ ] include old password in password update form
+- [ ] add phone number to checkout 
 - [ ] account/session/other? garbage collector
