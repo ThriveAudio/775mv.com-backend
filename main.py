@@ -625,7 +625,8 @@ async def settings(request: Request):
     response = {"result": "success"}
     response['email'] = account['email']
     # response['email confirmed'] = account['email confirmed']
-    response['password'] = ""
+    response['oldpassword'] = ""
+    response['newpassword'] = ""
 
     if session['state'] == "loggedin":
         return response
@@ -655,12 +656,23 @@ async def update_password(request: Request):
     account = await db.get_document('accounts', {'_id': account_id})
     print(res)
 
-    if res['items']['password'] != "":
-        if validate_password(res['items']['password']):
-            await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashh(res['items']['password'], account['salt'])}})
-            return {"result": "success"}
-        else:
+    old_hash = hashh(res['items']['oldpassword'], account['salt'])
+    if old_hash != account['password']:
+        return {"result": "error"}
+    else:
+        if not validate_password(res['items']['newpassword']):
             return {"result": "error"}
+
+    await db.db['accounts'].update_one({'_id': account_id},
+                                       {'$set': {'password': hashh(res['items']['newpassword'], account['salt'])}})
+    return {"result": "success"}
+
+    # if res['items']['password'] != "":
+    #     if validate_password(res['items']['password']):
+    #         await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'password': hashh(res['items']['password'], account['salt'])}})
+    #         return {"result": "success"}
+    #     else:
+    #         return {"result": "error"}
 
 @app.post("/orders")
 async def orders(request: Request):
