@@ -88,22 +88,24 @@ async def product(sku: str):
 
     return doc
 
-
-@app.get("/session-id")
-async def new_session_id():
-    doc = await db.post_document('accounts', {
+async def new_account():
+    return await db.post_document('accounts', {
         "new_emails": {},
         "email": "",
         "old_emails": [],
         "password": "",
         "password_id": "",
         "salt": "",
-        "timer var": 0,
+        "timer_var": 0,
         "timer": 0,
         "cart": [],
-        "orders": []
+        "orders": [],
+        "access_timestamps": [] # TODO implement garbage collection for unused/anonymous accounts
     })
 
+@app.get("/session-id")
+async def new_session_id():
+    doc = await new_account()
     uid = str(uuid.uuid4())
     config = await db.get_document("config", {'type': 'config'})
 
@@ -570,32 +572,32 @@ async def login(request: Request):
         hashed = hashh(res['items']['password'], account['salt'])
         if account['password'] == hashed:
             # passwords match
-            await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': 0}})
+            await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer_var': 0}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': 'loggedin'}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'expiration': time.time()+session_length}})
             await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'trusted_device': res['items']['check']}})
             return {"result": "redirect"}
         else:
             # passwords don't match
-            if account['timer var'] == 0:
-                # timer var is zero
+            if account['timer_var'] == 0:
+                # timer_var is zero
                 print("GOT HERE")
-                print(account['timer var'])
-                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': account['timer var']+5}})
-                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer': time.time() + account['timer var']+5}})
-                return {"result": f"error {time.time() + account['timer var']+5+1}"}
+                print(account['timer_var'])
+                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer_var': account['timer_var']+5}})
+                await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer': time.time() + account['timer_var']+5}})
+                return {"result": f"error {time.time() + account['timer_var']+5+1}"}
             else:
-                # timer var is more than zero
+                # timer_var is more than zero
                 if account['timer'] < time.time():
                     # timer expired
-                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': account['timer var'] + 5}})
-                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer': time.time() + account['timer var'] + 5}})
-                    return {"result": f"error {time.time() + account['timer var'] + 5+1}"}
+                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer_var': account['timer_var'] + 5}})
+                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer': time.time() + account['timer_var'] + 5}})
+                    return {"result": f"error {time.time() + account['timer_var'] + 5+1}"}
                 else:
                     # timer still ticking
-                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer var': account['timer var'] * 2}})
-                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer': account['timer'] + account['timer var'] * 2}})
-                    return {"result": f"error {account['timer'] + account['timer var'] * 2+1}"}
+                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer_var': account['timer_var'] * 2}})
+                    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'timer': account['timer'] + account['timer_var'] * 2}})
+                    return {"result": f"error {account['timer'] + account['timer_var'] * 2+1}"}
 
 @app.post("/logout")
 async def logout(request: Request):
@@ -607,18 +609,7 @@ async def logout(request: Request):
         await db.db['sessions'].update_one({'id': res['sessionId']}, {'$set': {'state': "registered"}})
     else:
         await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'unknown'}})
-        doc = await db.post_document('accounts', {
-            "new_emails": {},
-            "email": "",
-            "old_emails": [],
-            "password": "",
-            "password_id": "",
-            "salt": "",
-            "timer var": 0,
-            "timer": 0,
-            "cart": [],
-            "orders": []
-        })
+        doc = await new_account()
         await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'account': doc.inserted_id}})
 
     return {'result': "redirect"}
@@ -822,16 +813,7 @@ async def logout_expired_sessions():
         if time.time() > session['expiration'] and session['state'] != "unknown":
             if not session['trusted_device']:
                 await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'unknown'}})
-                doc = await db.post_document('accounts', {
-                    "new_emails": {},
-                    "email": "",
-                    "old_emails": [],
-                    "password": "",
-                    "timer var": 0,
-                    "timer": 0,
-                    "cart": [],
-                    "orders": []
-                })
+                doc = await new_account()
                 await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'account': doc.inserted_id}})
             else:
                 await db.db['sessions'].update_one({'_id': ObjectId(session['_id'])}, {'$set': {'state': 'registered'}})
