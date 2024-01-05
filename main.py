@@ -877,3 +877,19 @@ async def password_reset(request: Request):
     await db.db['accounts'].update_one({'email': account['email']}, {'$set': {'password_id': ""}})
     await db.db['accounts'].update_one({'email': account['email']}, {'$set': {'password': hashh(res['password'], account['salt'])}})
     return {"result": "success"}
+
+@app.get("/paypal-create-order")
+async def paypal_create_order():
+    last_id = (await db.get_document('orders', {"type": "last_id"}))['id']
+    new_id = last_id + random.randint(1, 13)
+    await db.db['orders'].update_one({'type': 'last_id'}, {'$set': {'id': new_id}})
+    print("last_id", last_id)
+    print("new_id", new_id)
+    return str(new_id)
+
+@app.post("/paypal-approve-order")
+async def paypal_approve_order(request: Request):
+    res = await request.body()
+    res = loads(res.decode())
+    print(res)
+    pass
