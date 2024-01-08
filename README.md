@@ -30,4 +30,6 @@
 - [x] include old password in password update form
 - [x] add phone number to checkout 
 - [ ] account/session/other? garbage collector
-- [ ] paypal create & approve order
+- [x] paypal create & approve order
+- [ ] add option to delete account
+- [ ] add option to delete account data
