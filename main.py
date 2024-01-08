@@ -212,6 +212,69 @@ async def update_cart(request: Request):
 
     return {"result": result}
 
+async def create_order(account, res, id=-1):
+    if (id == -1):
+        last_id = (await db.get_document('orders', {"type": "last_id"}))['id']
+        new_id = last_id + random.randint(1, 13)
+        await db.db['orders'].update_one({'type': 'last_id'}, {'$set': {'id': new_id}})
+    else:
+        new_id = id
+
+    items = []
+    for i in account['cart']:
+        items.append({
+            "id": (await db.get_document("products", {"sku": i['sku']}))['_id'],
+            "amount": i['amount']
+        })
+    await db.db['accounts'].update_one({'_id': ObjectId(account['_id'])}, {'$set': {'cart': []}})
+
+    config = await db.get_document("config", {'type': 'config'})
+
+    order_id = await db.post_document("orders", {
+        "id": new_id,
+        "time": {
+            "ordered": time.time(),
+            "shipped": 0,
+            "delivered": 0
+        },
+        "payment_status": "",
+        "payment_method": "",
+        "authorize_id": "",
+        "paypal_info": [],
+        "order_status": "processing",
+        "user": {
+            "account": account['_id'],
+            "contact": {
+                "first_name": res['items']['shipping']['first_name'],
+                "last_name": res['items']['shipping']['last_name'],
+                "email": res['items']['shipping']['email'],
+                "phone": res['items']['shipping']['phone']
+            },
+            "shipping": {
+                "address1": res['items']['shipping']['address1'],
+                "address2": res['items']['shipping']['address2'],
+                "city": res['items']['shipping']['city'],
+                "state": res['items']['shipping']['state'],
+                "zip": res['items']['shipping']['zip'],
+                "country": res['items']['shipping']['country'],
+                "price": config['shipping_price']['US'] if res['items']['shipping']['country'] == "US" else config['shipping_price']['Worldwide']
+            }
+        },
+        "items": items
+    })
+
+    return order_id.inserted_id
+
+async def order_add_authorize_info(order_id, authorize_id: str):
+    await db.db['orders'].update_one({'_id': ObjectId(order_id)}, {'$set': {"authorize_id": authorize_id}})
+    await db.db['orders'].update_one({'_id': ObjectId(order_id)}, {'$set': {"payment_status": "authorized"}})
+    await db.db['orders'].update_one({'_id': ObjectId(order_id)}, {'$set': {"payment_method": "card"}})
+
+async def order_add_paypal_info(order_id, paypal_info):
+    await db.db['orders'].update_one({'_id': ObjectId(order_id)}, {'$set': {"payment_status": "captured"}})
+    await db.db['orders'].update_one({'_id': ObjectId(order_id)}, {'$set': {"payment_method": "paypal"}})
+    await db.db['orders'].update_one({'_id': ObjectId(order_id)}, {'$set': {"paypal_info": paypal_info}})
+
 @app.post("/authorize")
 async def authorize(request: Request):
     """
@@ -369,49 +432,51 @@ async def authorize(request: Request):
                 print('Description: %s' % response.transactionResponse.
                       messages.message[0].description)
 
-                items = []
-                for i in account['cart']:
-                    items.append({
-                        "id": (await db.get_document("products", {"sku": i['sku']}))['_id'],
-                        "amount": i['amount']
-                    })
-                order_id = await db.post_document("orders", {
-                    "id": new_id,
-                    "time": {
-                      "ordered": time.time(),
-                      "shipped": 0,
-                      "delivered": 0
-                    },
-                    "payment_status": "authorized",
-                    "payment_method": "card",
-                    "authorize_id": str(response.transactionResponse.transId),
-                    "order_status": "processing",
-                    "user": {
-                        "account": account['_id'],
-                        "contact": {
-                            "first_name": res['items']['shipping']['first_name'],
-                            "last_name": res['items']['shipping']['last_name'],
-                            "email": res['items']['shipping']['email'],
-                            "phone": res['items']['shipping']['phone']
-                        },
-                        "shipping": {
-                            "address1": res['items']['shipping']['address1'],
-                            "address2": res['items']['shipping']['address2'],
-                            "city": res['items']['shipping']['city'],
-                            "state": res['items']['shipping']['state'],
-                            "zip": res['items']['shipping']['zip'],
-                            "country": res['items']['shipping']['country'],
-                            "price": shipping_price
-                        }
-                    },
-                    "items": items
-                })
+                # items = []
+                # for i in account['cart']:
+                #     items.append({
+                #         "id": (await db.get_document("products", {"sku": i['sku']}))['_id'],
+                #         "amount": i['amount']
+                #     })
+                # order_id = await db.post_document("orders", {
+                #     "id": new_id,
+                #     "time": {
+                #       "ordered": time.time(),
+                #       "shipped": 0,
+                #       "delivered": 0
+                #     },
+                #     "payment_status": "authorized",
+                #     "payment_method": "card",
+                #     "authorize_id": str(response.transactionResponse.transId),
+                #     "order_status": "processing",
+                #     "user": {
+                #         "account": account['_id'],
+                #         "contact": {
+                #             "first_name": res['items']['shipping']['first_name'],
+                #             "last_name": res['items']['shipping']['last_name'],
+                #             "email": res['items']['shipping']['email'],
+                #             "phone": res['items']['shipping']['phone']
+                #         },
+                #         "shipping": {
+                #             "address1": res['items']['shipping']['address1'],
+                #             "address2": res['items']['shipping']['address2'],
+                #             "city": res['items']['shipping']['city'],
+                #             "state": res['items']['shipping']['state'],
+                #             "zip": res['items']['shipping']['zip'],
+                #             "country": res['items']['shipping']['country'],
+                #             "price": shipping_price
+                #         }
+                #     },
+                #     "items": items
+                # })
+                order_id = await create_order(account, res)
+                await order_add_authorize_info(order_id, str(response.transactionResponse.transId))
 
-                account['orders'].append(ObjectId(order_id.inserted_id))
-                await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'cart': []}})
+                account['orders'].append(ObjectId(order_id))
+                # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'cart': []}})
                 # await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'email': res['items']['shipping']['email']}})
                 await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'orders': account['orders']}})
-                await db.db['orders'].update_one({'type': 'last_id'}, {'$set': {'id': new_id}})
+                # await db.db['orders'].update_one({'type': 'last_id'}, {'$set': {'id': new_id}})
                 config = await db.get_document("config", {'type': 'config'})
 
                 email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
@@ -436,7 +501,7 @@ async def authorize(request: Request):
                 # email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation", f"{res} {account['cart']}")
                 env = Environment(loader=FileSystemLoader('email_templates'))
 
-                email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation",env.get_template('order-confirmation.html').render(user=res['items'], items=account['cart'], id=order_id.inserted_id))
+                email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{new_id} confirmation",env.get_template('order-confirmation.html').render(user=res['items'], items=account['cart'], id=order_id))
                 email.send("thriveaudiollc@gmail.com", f"TEST New Order #{new_id} | {res['items']['shipping']['first_name']} {res['items']['shipping']['last_name']}", env.get_template('new-order.html').render(user=res['items'], items=account['cart']))
 
                 return {"result" : f"success {order_id.inserted_id}"}
@@ -733,6 +798,15 @@ async def confirm_email(request: Request):
     account_id = session['account']
     account = await db.get_document('accounts', {'_id': account_id})
 
+    accounts = await db.get_collection_as_list('accounts')
+    for i in accounts:
+        if str(i['_id']) != str(account_id):
+            if res['email'] == i['email']:
+                return {"result": "exists"}
+            for x in i['old_emails']:
+                if x == res['email']:
+                    return {"result": "exists"}
+
     if account['email'] == res['email']:
         return {"result": "confirmed"}
 
@@ -891,5 +965,49 @@ async def paypal_create_order():
 async def paypal_approve_order(request: Request):
     res = await request.body()
     res = loads(res.decode())
-    print(res)
-    pass
+    session = await db.get_document('sessions', {'id': res['sessionId']})
+    account_id = session['account']
+    account = await db.get_document('accounts', {'_id': account_id})
+
+    print("paypal-approve-order", res)
+    # res['items'] = res['data']
+    order_id = await create_order(account, res)
+    await order_add_paypal_info(order_id, res['paypal'])
+
+
+
+
+    account['orders'].append(ObjectId(order_id))
+    await db.db['accounts'].update_one({'_id': account_id}, {'$set': {'orders': account['orders']}})
+    config = await db.get_document("config", {'type': 'config'})
+
+    email = yagmail.SMTP('thriveaudiollc@gmail.com', config['gmail'])
+
+    shipping_price = config['shipping_price']['US'] if res['items']['shipping']['country'] == "US" else config['shipping_price']['Worldwide']
+
+    total = 0
+    amount = 0
+    for item in account['cart']:
+        db_item = await db.get_document('products', {'sku': item['sku']})
+        item['price'] = db_item['price']
+        item['name'] = db_item['name']
+        amount += item['amount']
+        total += item['price'] * item['amount']
+    total += shipping_price
+
+    res['items']['shipping']['price'] = shipping_price
+    res['items']['total'] = total
+    res['items']['amount'] = amount
+
+    env = Environment(loader=FileSystemLoader('email_templates'))
+
+    order_num = (await db.get_document('orders', {'_id': ObjectId(order_id)}))['id']
+
+    email.send(res['items']['shipping']['email'], f"DEV 775mv TEST Order #{order_num} confirmation",env.get_template('order-confirmation.html').render(user=res['items'], items=account['cart'], id=order_id))
+    email.send("thriveaudiollc@gmail.com", f"TEST New Order #{order_num} | {res['items']['shipping']['first_name']} {res['items']['shipping']['last_name']}", env.get_template('new-order.html').render(user=res['items'], items=account['cart']))
+
+
+
+    return {"result": f"success {order_id}"}
+# create order
+# add paypal/authorize info
