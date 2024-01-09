@@ -985,18 +985,21 @@ async def paypal_approve_order(request: Request):
 
     shipping_price = config['shipping_price']['US'] if res['items']['shipping']['country'] == "US" else config['shipping_price']['Worldwide']
 
-    total = 0
+    # total = 0
     amount = 0
     for item in account['cart']:
         db_item = await db.get_document('products', {'sku': item['sku']})
         item['price'] = db_item['price']
         item['name'] = db_item['name']
         amount += item['amount']
-        total += item['price'] * item['amount']
-    total += shipping_price
+    #     total += item['price'] * item['amount']
+    # total += shipping_price
+    # total *= 1.035
+    # total = round(total, 2)
+
 
     res['items']['shipping']['price'] = shipping_price
-    res['items']['total'] = total
+    res['items']['total'] = res['price']
     res['items']['amount'] = amount
 
     env = Environment(loader=FileSystemLoader('email_templates'))
