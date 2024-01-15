@@ -70,7 +70,7 @@ async def get_products():
     for i, x in enumerate(checked_docs):
         x['id'] = i
     pprint(checked_docs)
-    time.sleep(3)
+    # time.sleep(3)
     return checked_docs#db.get_collection_as_list('products')
     #return {'products': [{'name': 'filter', 'price': 20}, {'name': 'filter2', 'price': 10}]}
 
